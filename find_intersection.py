@@ -24,7 +24,6 @@ def generate_park_dictionary(park_file):
         if name not in park_dict.keys():
             park_dict[name] = [feature['geometry']['coordinates']]
         else:
-            print('duplicated!')
             park_dict[name].append(feature['geometry']['coordinates'])
     return park_dict
 
@@ -42,18 +41,18 @@ def find_adjacent_park(coordinates, enlarged_polygon_dict):
         for polygon in enlarged_polygon_dict[key]:
             if polygon.contains(endpoint1) or polygon.contains(endpoint2):
                 result.append(key)
-    return result
+    return result 
 
 
-def read_sidewalk(sidewalk_file, new_sidewalk_file, enlarged_polygon_dict):
+def generate_new_file(data, file, new_file, enlarged_polygon_dict):
     '''
-    Reads sidewalk csv file; checks if each sidewalk is inside or 
+    Reads a csv file; checks if each sidewalk is inside or 
     intersected with a park boundary (enlarged polygon), return a
     new csv file wiht a new column indicates a list of park the 
     sidewalk belongs to.
     '''
-    with open(sidewalk_file, 'r') as csvinput:
-        with open(new_sidewalk_file, 'w') as csvoutput:
+    with open(file, 'r') as csvinput:
+        with open(new_file, 'w') as csvoutput:
             writer = csv.writer(csvoutput)
             reader = csv.reader(csvinput)
             
@@ -62,52 +61,77 @@ def read_sidewalk(sidewalk_file, new_sidewalk_file, enlarged_polygon_dict):
             head.append('adjacent_parks')
             content.append(head)
             
+            count = 0
+            row_num = 0
             for row in reader:
+                row_num += 1
                 coordinates = []
-                coordinates.append([float(row[10][1: -1].split(',')[0]),
-                                   float(row[10][1: -1].split(',')[1])])
-                coordinates.append([float(row[11][1: -1].split(',')[0]),
-                                   float(row[11][1: -1].split(',')[1])])
-                row.append(find_adjacent_park(coordinates,
-                                              enlarged_polygon_dict))
+                if data == 'sidewalks':
+                    coordinates.append([float(row[10][1: -1].split(',')[0]),
+                                       float(row[10][1: -1].split(',')[1])])
+                    coordinates.append([float(row[11][1: -1].split(',')[0]),
+                                       float(row[11][1: -1].split(',')[1])])
+                elif data == 'crossings':
+                    coordinates.append([float(row[5][1: -1].split(',')[0]),
+                                       float(row[5][1: -1].split(',')[1])])
+                    coordinates.append([float(row[6][1: -1].split(',')[0]),
+                                       float(row[6][1: -1].split(',')[1])])
+                park_list = find_adjacent_park(coordinates,
+                                               enlarged_polygon_dict)
+                if len(park_list) > 0:
+                    count += 1
+                row.append(park_list)
                 content.append(row)
-            
+            print(count / row_num)
+            # Generates new file
             writer.writerows(content)
+
+
+def enlarge_park_boundary(park_list):
+    '''
+    Takes a list of parks, enlarges their boundaries and stores in a 
+    dictionary and returns it
+    '''
+    polygon_dict = {}
+    enlarged_polygon_dict = {}
+    for park in park_list:
+        for k in range(len(park_dict[park])):
+            for i in range(len(park_dict[park][k])):
+                coordiante = park_dict[park][k][i][0]
+                polygon = Polygon(coordiante)
+                if park not in polygon_dict.keys():
+                    polygon_dict[park] = [polygon]
+                else:
+                    polygon_dict[park].append(polygon)
+#                x, y = polygon.exterior.xy
+#                plt.figure(1)
+#                plt.plot(x, y, 'k')
             
-        
-#for key in park_dict.keys():
-#    if len(park_dict[key]) > 1:
-#        print(key, len(park_dict[key]))
-            
-            
+                enlarged_polygon = Polygon(polygon.buffer(0.0005).exterior)
+                if park not in enlarged_polygon_dict.keys():
+                    enlarged_polygon_dict[park] = [enlarged_polygon]
+                else:
+                    enlarged_polygon_dict[park].append(enlarged_polygon)
+#                x1, y1 = enlarged_polygon.exterior.xy
+#                plt.figure(1)
+#                plt.plot(x1, y1, 'b')
+#    plt.show()
+    return enlarged_polygon_dict
+
+
+# Reads park dataset
 park_dict = generate_park_dictionary('data_table/park_only_boundary1.geojson')
 
-park_list = ['GREEN LAKE PARK', 'WOODLAND PARK ZOO', 'WOODLAND PARK',
-         'LINDEN ORCHARD PARK', 'NE 60TH STREET PARK']
-polygon_dict = {}
-enlarged_polygon_dict = {}
-for park in park_list:
-    print(len(park_dict[park][0]))
-    for i in range(len(park_dict[park][0])):
-        coordiante = park_dict[park][0][i][0]
-        polygon = Polygon(coordiante)
-        if park not in polygon_dict.keys():
-            polygon_dict[park] = [polygon]
-        else:
-            polygon_dict[park].append(polygon)
-        x, y = polygon.exterior.xy
-        plt.figure(1)
-        plt.plot(x, y, 'k')
-    
-        enlarged_polygon = Polygon(polygon.buffer(0.0001).exterior)
-        if park not in enlarged_polygon_dict.keys():
-            enlarged_polygon_dict[park] = [enlarged_polygon]
-        else:
-            enlarged_polygon_dict[park].append(enlarged_polygon)
-        x1, y1 = enlarged_polygon.exterior.xy
-        plt.figure(1)
-        plt.plot(x1, y1, 'b')
-plt.show()
-    
-read_sidewalk('data_table/small_sidewalks.csv',
-              'data_table/new_small_sidewalks.csv', enlarged_polygon_dict)
+park_list = list(park_dict.keys())
+#park_list = ['GREEN LAKE PARK', 'WOODLAND PARK ZOO', 'WOODLAND PARK',
+#             'LINDEN ORCHARD PARK', 'NE 60TH STREET PARK']
+
+# Finds intersection and generates output file
+sw_input_file = 'data_table/sidewalks.csv'
+sw_output_file = 'data_table/new_sidewalks.csv'
+enlarged_park_dict = enlarge_park_boundary(park_list)
+generate_new_file('sidewalks', sw_input_file, sw_output_file, enlarged_park_dict)
+
+cr_input_file = 'data_table/crossings.csv'
+cr_output_file = 'data_table/new_crossings.csv'
+generate_new_file('crossings', cr_input_file, cr_output_file, enlarged_park_dict)
