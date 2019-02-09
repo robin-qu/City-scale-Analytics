@@ -44,7 +44,9 @@ def add_feature(sw, df, feature_file, feature_name):
 		
 		sw_id.append(closest_dist)
 		point.append(new_point)
-		new_col[closest_dist] = p
+		if new_col[closest_dist] is None:
+			new_col[closest_dist] = []
+		new_col[closest_dist].append(idx)
 		print()
 
 	df['closest_sidewalk_id'] = sw_id
