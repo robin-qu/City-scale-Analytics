@@ -179,7 +179,7 @@ for (var i = 0; i < toggleableLayerIds.length; i++) {
 }
 
 
-// Add Zoom-in, Zoom-out button
+// Add Zoom-in and Zoom-out button
 map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
 
