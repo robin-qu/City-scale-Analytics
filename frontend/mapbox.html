@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>Mapbox</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.53.1/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.53.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin:0; padding:0; }
+        #map { position:absolute; top:0; bottom:0; width:100%; }
+    </style>
+</head>
+<body>
+
+
+<style type='text/css'>
+    #info {
+        display: block;
+        position: relative;
+        margin: 0px auto;
+        width: 50%;
+        padding: 10px;
+        border: none;
+        border-radius: 3px;
+        font-size: 12px;
+        text-align: center;
+        color: #222;
+        background: #fff;
+    }
+</style>
+<div id='map'></div>
+<pre id='info'></pre>
+
+
+<script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoicm9iaW4xMCIsImEiOiJjanNuc3NrNHAwZnBvNDNvMmZvMnMyMTl2In0.xSIuon77YkcamUuh5eFLqA';
+    var map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v9',
+        center: [237.66921043396, 47.604889909932865],
+        zoom: 10
+    });
+
+    var sidewalks = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/' +
+        'master/data_table/sidewalks.geojson'
+    var crossings = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/' +
+        'master/data_table/crossings.geojson'
+    var hospitals = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/' +
+        'master/data_table/Hospitals.geojson'
+    var dog_off_leash_areas = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/' +
+        'master/data_table/Seattle%20Parks%20and%20Recreation%20GIS%20Map%20Layer' +
+        '%20Shapefile%20-%20Dog%20Off%20Leash%20Areas.geojson'
+    var drinking_fountains = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/' +
+        'master/data_table/Seattle%20Parks%20and%20Recreation%20GIS%20Map%20Layer%20' +
+        'Shapefile%20-%20Drinking%20Fountain.geojson'
+    var public_restrooms = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/master/data_table/' +
+        'Seattle%20Parks%20and%20Recreation%20GIS%20Map%20Layer%20Shapefile%20-%20' +
+        'Public%20Restroom.geojson'
+    var view_points = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/master/data_table/' +
+        'Seattle%20Parks%20and%20Recreation%20GIS%20Map%20Layer%20Shapefile%20-%20View%20Points.geojson'
+    var walkshed = 'https://raw.githubusercontent.com/miss-grass/City-scale-Analytics/' +
+        'shenghao/walkshed%20test/test_walkshed.geojson'
+
+    map.on('load', function() {
+        function addLine(file, id, color, line_width) {
+            map.addLayer({
+                id: id,
+                type: 'line',
+                source: {
+                    type: 'geojson',
+                    data: file
+                },
+                paint: {
+                    'line-color': color,
+                    'line-width': line_width
+                }
+            })
+        }
+
+        function addPoints(file, source, id, color) {
+            map.addSource(source, {
+                type: "geojson",
+                data: file,
+                cluster: true,
+                clusterMaxZoom: 14,
+                clusterRadius: 50
+            });
+
+            map.addLayer({
+                id: id,
+                type: "circle",
+                source: source,
+                filter: ["has", "point_count"],
+                paint: {
+                    "circle-color": color,
+                    "circle-radius": [
+                        "step",
+                        ["get", "point_count"],
+                        20,
+                        50,
+                        30,
+                        200,
+                        40
+                    ]
+                }
+            });
+
+            map.addLayer({
+                id: "unclustered " + id,
+                type: "circle",
+                source: source,
+                filter: ["!", ["has", "point_count"]],
+                paint: {
+                    "circle-color": color,
+                    "circle-radius": 5,
+                    "circle-stroke-width": 1,
+                    "circle-stroke-color": "#000000"
+                }
+            });
+
+            map.addLayer({
+                id: source,
+                type: "symbol",
+                source: source,
+                filter: ["has", "point_count"],
+                layout: {
+                    "text-field": "{point_count_abbreviated}",
+                    "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+                    "text-size": 12
+                }
+            });
+
+            // inspect a cluster on click
+            map.on('click', id, function (e) {
+                var features = map.queryRenderedFeatures(e.point, { layers: [id] });
+                var clusterId = features[0].properties.cluster_id;
+                map.getSource(source).getClusterExpansionZoom(clusterId, function (err, zoom) {
+                    if (err)
+                        return;
+
+                    map.easeTo({
+                        center: features[0].geometry.coordinates,
+                        zoom: zoom
+                    });
+                });
+            });
+
+            map.on('mouseenter', id, function () {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            map.on('mouseleave', id, function () {
+                map.getCanvas().style.cursor = '';
+            });
+
+            // Get coordinates of the mouse pointer
+            map.on('mousemove', function (e) {
+                // e.lngLat is the longitude, latitude geographical position of the event
+                document.getElementById('info').innerHTML = JSON.stringify(e.lngLat);
+            });
+        }
+
+        /********** visualize ***********/
+        addLine(sidewalks, 'sidewalks', '#000000', 1)
+        addLine(crossings, 'crossings', '#FF0000', 1)
+        addLine(walkshed, 'walkshed', '#0000FF', 6)
+        addPoints(dog_off_leash_areas, 'dola', 'dog off-leah area', '#006400')
+        addPoints(public_restrooms, 'pr', 'public restrooms', '#4B0082')
+        addPoints(drinking_fountains, 'df', 'drinking fountain', '#6495ED')
+        addPoints(view_points, 'vp', 'view point', '#FFD700')
+        addPoints(hospitals, 'hsp', 'hospitals', '#FF1493')
+    });
+
+</script>
+</body>
+</html>
