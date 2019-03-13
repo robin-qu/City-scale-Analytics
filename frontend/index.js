@@ -7,7 +7,6 @@ var map = new mapboxgl.Map({
     zoom: 10
 });
 
-
 // Datasets
 var sidewalks = 'https://raw.githubusercontent.com/robin-qu/City-scale-Analytics/' +
     'master/data_table/sidewalks.geojson'
@@ -87,7 +86,55 @@ map.on('load', function() {
             }
         });
 
-        map.addLayer({
+		// Create a popup
+		var popup = new mapboxgl.Popup({
+			closeButton: false,
+			closeOnClick: false
+		});
+
+		map.on('mouseenter', 'unclustered ' + id, function(e) {
+			// Change the cursor style as a UI indicator.
+			map.getCanvas().style.cursor = 'pointer';
+
+			var coordinates = e.features[0].geometry.coordinates.slice();
+			if (id === "Hospitals") {
+				var description = "Hospital: NAME: " + e.features[0].properties.FACILITY +
+					"; ADDRESS: " + e.features[0].properties.ADDRESS +
+					"; CITY: " + e.features[0].properties.CITY;
+			} else if (id === "Public Restrooms") {
+				var description = "Public Restroom: NAME: " + e.features[0].properties.alt_name +
+					"; PARK: " + e.features[0].properties.park +
+					"; DESCRIPTION: " + e.features[0].properties.descriptio;
+			} else if (id === "Dog Off Leash Areas") {
+				var description = "Dog Off Leash Area: NAME: " + e.features[0].properties.name;
+			} else if (id === "Drinking Fountains") {
+				var description = "Drinking Fountain: LOCATION: (" + e.features[0].geometry.coordinates + ")";
+			} else {
+				var description = "View Point: NAME: " + e.features[0].properties.name +
+					"; ADDRESS: " + e.features[0].properties.address;
+			}
+
+			// Ensure that if the map is zoomed out such that multiple
+			// copies of the feature are visible, the popup appears
+			// over the copy being pointed to.
+			while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+				coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+			}
+
+			// Populate the popup and set its coordinates
+			// based on the feature found.
+			popup.setLngLat(coordinates)
+				.setHTML(description)
+				.addTo(map);
+		});
+
+		map.on('mouseleave', 'unclustered ' + id, function() {
+			map.getCanvas().style.cursor = '';
+			popup.remove();
+		});
+
+
+		map.addLayer({
             id: id + "text",
             type: "symbol",
             source: source,
@@ -179,9 +226,8 @@ for (var i = 0; i < toggleableLayerIds.length; i++) {
 }
 
 
-// Add Zoom-in and Zoom-out button
+// Add Zoom-in, Zoom-out button
 map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-
 
 // access current location
 map.addControl(new mapboxgl.GeolocateControl({
@@ -194,17 +240,59 @@ map.addControl(new mapboxgl.GeolocateControl({
 
 //show lat and long in console
 map.on('click', function(e) {
-	var isClicked = false;
-
-	const result = map.queryRenderedFeatures(e.point, {layers:['sidewalk']});
-	if (!isClicked && result.length > 0) {
-		marker = new mapboxgl.Marker(e).setLngLat(e.lngLat).addTo(map);
-		isClicked = true;
-	} else if (isClicked) {
-		marker.remove();
-		isClicked = false;
+	const result = map.queryRenderedFeatures(e.point, {layers:['Sidewalks']});
+	if (result.length > 0) {
+		if (typeof circleMarker !== "undefined" ){
+	    	circleMarker.remove();
+	  	}
+	  	//add marker
+		print(typeof e.lngLat);
+	  	circleMarker = new mapboxgl.Marker({color:"red"}).setLngLat(e.lngLat).addTo(map);
+		var geocodes = [];
+		geocodes.push(coordinateFeature(e));
+		console.log(geocodes);
+		return geocodes;
+		// console.log('click', e.lngLat);
 	}
 
-	console.log(isClicked);
-	console.log('click', e.lngLat);
-})
+
+	function coordinateFeature(e) {
+	return {
+			center: [e.lngLat["lng"], e.lngLat["lat"]],
+			geometry: {
+				type: "Point",
+				coordinates: [e.lngLat["lng"], e.lngLat["lat"]]
+			},
+			place_name: 'Lat: ' + e.lngLat["lat"] + ', Lng: ' + e.lngLat["lng"], // eslint-disable-line camelcase
+			place_type: ['coordinate'], // eslint-disable-line camelcase
+			properties: {},
+			type: 'Feature'
+		};
+	}
+
+
+});
+
+document.getElementById("search").onclick = getFeature;
+function getFeature() {
+	var feature = document.getElementById("featuresinput").value;
+	var time = document.getElementById("timeinput").value;
+	$.ajaxSetup({
+	contentType: "application/json; charset=utf-8"
+	});
+	var request = {
+		"start_lat": 47.6029592,
+		"start_lon": -122.3329241,
+		"max_time": time,
+		"feature": feature,
+	};
+	// ajax the JSON to the server
+	$.post("receiver", JSON.stringify(request), function(data){
+	    console.log(request);
+        alert("Data: " + data);
+	});
+	// stop link reloading the page
+    event.preventDefault();
+}
+
+
